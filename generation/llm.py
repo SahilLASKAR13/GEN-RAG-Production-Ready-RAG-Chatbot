@@ -3,8 +3,16 @@
 # Supports OpenAI, Anthropic Claude, and local Ollama.
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Iterator
+
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+)
+from langchain_groq import ChatGroq
 
 from config.settings import settings
 
@@ -17,114 +25,75 @@ class LLMResponse:
     output_tokens: int = 0
 
 
-class OpenAILLM:
+class GroqLLM:
+    """
+    Groq LLM wrapper using LangChain.
+    """
+
     def __init__(self):
-        from openai import OpenAI
-        self.client = OpenAI(api_key=settings.openai_api_key)
 
-    def complete(self, system: str, messages: list[dict]) -> LLMResponse:
-        resp = self.client.chat.completions.create(
+        self.llm = ChatGroq(
+            api_key=settings.groq_api_key,
             model=settings.llm_model,
-            messages=[{"role": "system", "content": system}, *messages],
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
         )
-        choice = resp.choices[0].message
+
+    def _build_messages(
+        self,
+        system: str,
+        messages: list[dict],
+    ):
+
+        chat = [
+            SystemMessage(content=system)
+        ]
+
+        for message in messages:
+
+            role = message["role"]
+            content = message["content"]
+
+            if role == "user":
+                chat.append(HumanMessage(content=content))
+
+            elif role == "assistant":
+                chat.append(AIMessage(content=content))
+
+        return chat
+
+    def complete(
+        self,
+        system: str,
+        messages: list[dict],
+    ) -> LLMResponse:
+
+        response = self.llm.invoke(
+            self._build_messages(system, messages)
+        )
+
         return LLMResponse(
-            text=choice.content,
-            model=resp.model,
-            input_tokens=resp.usage.prompt_tokens,
-            output_tokens=resp.usage.completion_tokens,
-        )
-
-    def stream(self, system: str, messages: list[dict]) -> Iterator[str]:
-        stream = self.client.chat.completions.create(
+            text=response.content,
             model=settings.llm_model,
-            messages=[{"role": "system", "content": system}, *messages],
-            temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
-            stream=True,
-        )
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
-
-
-class AnthropicLLM:
-    def __init__(self):
-        import anthropic
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-    def complete(self, system: str, messages: list[dict]) -> LLMResponse:
-        resp = self.client.messages.create(
-            model=settings.llm_model,
-            system=system,
-            messages=messages,
-            max_tokens=settings.llm_max_tokens,
-            temperature=settings.llm_temperature,
-        )
-        return LLMResponse(
-            text=resp.content[0].text,
-            model=resp.model,
-            input_tokens=resp.usage.input_tokens,
-            output_tokens=resp.usage.output_tokens,
         )
 
-    def stream(self, system: str, messages: list[dict]) -> Iterator[str]:
-        with self.client.messages.stream(
-            model=settings.llm_model,
-            system=system,
-            messages=messages,
-            max_tokens=settings.llm_max_tokens,
-        ) as stream:
-            yield from stream.text_stream
+    def stream(
+        self,
+        system: str,
+        messages: list[dict],
+    ) -> Iterator[str]:
+
+        for chunk in self.llm.stream(
+            self._build_messages(system, messages)
+        ):
+
+            if chunk.content:
+                yield chunk.content
 
 
-class OllamaLLM:
-    """Local Ollama server — no API key required."""
+def get_llm() -> GroqLLM:
+    """
+    Return the configured LLM.
+    """
 
-    def __init__(self, base_url: str = "http://localhost:11434"):
-        import httpx
-        self.base_url = base_url
-        self.http = httpx.Client()
-
-    def complete(self, system: str, messages: list[dict]) -> LLMResponse:
-        payload = {
-            "model": settings.llm_model,
-            "messages": [{"role": "system", "content": system}, *messages],
-            "stream": False,
-        }
-        resp = self.http.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
-        resp.raise_for_status()
-        data = resp.json()
-        return LLMResponse(
-            text=data["message"]["content"],
-            model=data.get("model", settings.llm_model),
-        )
-
-    def stream(self, system: str, messages: list[dict]) -> Iterator[str]:
-        import json
-        payload = {
-            "model": settings.llm_model,
-            "messages": [{"role": "system", "content": system}, *messages],
-            "stream": True,
-        }
-        with self.http.stream("POST", f"{self.base_url}/api/chat", json=payload, timeout=120) as r:
-            for line in r.iter_lines():
-                if line:
-                    data = json.loads(line)
-                    delta = data.get("message", {}).get("content", "")
-                    if delta:
-                        yield delta
-
-
-def get_llm():
-    provider = settings.llm_provider
-    if provider == "openai":
-        return OpenAILLM()
-    if provider == "anthropic":
-        return AnthropicLLM()
-    if provider == "ollama":
-        return OllamaLLM()
-    raise ValueError(f"Unknown LLM provider: {provider}")
+    return GroqLLM()
