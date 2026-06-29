@@ -51,3 +51,7 @@ async def upload_document(
         chunks=chunks,
         message="Document indexed successfully.",
     )
+
+@router.post("/upload")
+async def upload_document(file: UploadFile = File(...)):
+    ...

@@ -51,3 +51,8 @@ def chat_stream(request: ChatRequest):
         event_stream(),
         media_type="text/plain",
     )
+
+
+@router.post("/chat")
+def chat(request: ChatRequest):
+    ...
