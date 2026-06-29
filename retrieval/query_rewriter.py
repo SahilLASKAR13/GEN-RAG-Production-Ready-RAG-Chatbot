@@ -3,98 +3,152 @@
 # Strategies: plain pass-through, HyDE, step-back, multi-query.
 
 from __future__ import annotations
+
 import json
+
+from langchain_groq import ChatGroq
+from langchain_core.messages import HumanMessage
 
 from config.settings import settings
 
 
-def _llm_complete(prompt: str, max_tokens: int = 256) -> str:
-    """Lightweight one-shot LLM call used only for rewriting."""
-    from openai import OpenAI
-    client = OpenAI(api_key=settings.openai_api_key)
-    resp = client.chat.completions.create(
-        model=settings.llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-        max_tokens=max_tokens,
-    )
-    return resp.choices[0].message.content.strip()
+class LLMClient:
+    """Shared Groq LLM client."""
+
+    def __init__(self):
+        self.llm = ChatGroq(
+            model=settings.llm_model,
+            api_key=settings.groq_api_key,
+            temperature=0.0,
+            max_tokens=settings.llm_max_tokens,
+        )
+
+    def complete(
+        self,
+        prompt: str,
+    ) -> str:
+
+        response = self.llm.invoke(
+            [HumanMessage(content=prompt)]
+        )
+
+        return response.content.strip()
+
+
+llm = LLMClient()
 
 
 class PassthroughRewriter:
-    """No rewriting — returns the query as-is."""
+    """Return the original query unchanged."""
 
-    def rewrite(self, query: str) -> list[str]:
+    def rewrite(
+        self,
+        query: str,
+    ) -> list[str]:
+
         return [query]
 
 
 class HyDERewriter:
     """
-    Hypothetical Document Embeddings: ask the LLM to write a short
-    passage that *would* answer the query, then embed that passage.
-    This aligns query semantics with document semantics.
+    Hypothetical Document Embeddings.
     """
 
-    def rewrite(self, query: str) -> list[str]:
-        prompt = (
-            "Write a concise 3-sentence passage that directly answers the following question. "
-            "Do not say 'Here is' or any preamble — just the passage.\n\n"
-            f"Question: {query}"
-        )
-        hypothesis = _llm_complete(prompt)
+    def rewrite(
+        self,
+        query: str,
+    ) -> list[str]:
+
+        prompt = f"""
+Write a concise three-sentence passage that directly answers the question.
+
+Question:
+{query}
+
+Only return the passage.
+"""
+
+        hypothesis = llm.complete(prompt)
+
         return [hypothesis]
 
 
 class StepBackRewriter:
     """
-    Step-back prompting: generate a broader, more general version of
-    the query to retrieve supporting background context.
-    Returns both the original and the step-back query.
+    Generate a broader version of the query.
     """
 
-    def rewrite(self, query: str) -> list[str]:
-        prompt = (
-            "Given the specific question below, write ONE broader, more general question "
-            "that would help answer it by providing useful background knowledge.\n\n"
-            f"Specific question: {query}\n\nBroader question:"
-        )
-        broader = _llm_complete(prompt)
+    def rewrite(
+        self,
+        query: str,
+    ) -> list[str]:
+
+        prompt = f"""
+Given the following question, generate one broader question that would
+help retrieve useful background information.
+
+Question:
+{query}
+
+Only return the broader question.
+"""
+
+        broader = llm.complete(prompt)
+
         return [query, broader]
 
 
 class MultiQueryRewriter:
     """
-    Generate N alternative phrasings of the query to improve recall.
-    Returns the original plus the alternatives.
+    Generate multiple paraphrases of the query.
     """
 
-    def __init__(self, n: int = 3):
+    def __init__(
+        self,
+        n: int = 3,
+    ):
         self.n = n
 
-    def rewrite(self, query: str) -> list[str]:
-        prompt = (
-            f"Generate {self.n} alternative phrasings of the following question. "
-            "Return them as a JSON array of strings, no other text.\n\n"
-            f"Question: {query}"
-        )
-        raw = _llm_complete(prompt, max_tokens=512)
+    def rewrite(
+        self,
+        query: str,
+    ) -> list[str]:
+
+        prompt = f"""
+Generate {self.n} different paraphrases of the following question.
+
+Return ONLY a JSON list.
+
+Question:
+{query}
+"""
+
+        response = llm.complete(prompt)
+
         try:
-            alternatives = json.loads(raw)
-            if not isinstance(alternatives, list):
+            queries = json.loads(response)
+
+            if not isinstance(queries, list):
                 raise ValueError
-        except (json.JSONDecodeError, ValueError):
-            alternatives = []
-        return [query, *alternatives]
+
+        except Exception:
+            queries = []
+
+        return [query, *queries]
 
 
-def get_query_rewriter(strategy: str = "passthrough"):
+def get_query_rewriter(
+    strategy: str = "passthrough",
+):
+
     strategies = {
-        "passthrough":  PassthroughRewriter,
-        "hyde":         HyDERewriter,
-        "step_back":    StepBackRewriter,
-        "multi_query":  MultiQueryRewriter,
+        "passthrough": PassthroughRewriter,
+        "hyde": HyDERewriter,
+        "step_back": StepBackRewriter,
+        "multi_query": MultiQueryRewriter,
     }
-    cls = strategies.get(strategy)
-    if not cls:
-        raise ValueError(f"Unknown rewriter strategy: {strategy}")
-    return cls()
+
+    if strategy not in strategies:
+        raise ValueError(f"Unknown strategy: {strategy}")
+
+    return strategies[strategy]()

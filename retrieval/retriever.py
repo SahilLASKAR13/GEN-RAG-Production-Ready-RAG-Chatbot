@@ -3,7 +3,10 @@
 # Results are merged with Reciprocal Rank Fusion (RRF).
 
 from __future__ import annotations
+
 from typing import Any
+
+from rank_bm25 import BM25Okapi
 
 from config.settings import settings
 from indexing.embedder import EmbedderProtocol
@@ -13,53 +16,69 @@ from indexing.vector_store import VectorStore
 SearchResult = dict[str, Any]
 
 
-def _rrf_score(rank: int, k: int = 60) -> float:
-    """Reciprocal Rank Fusion score for a result at 0-based rank."""
+def reciprocal_rank_fusion(rank: int, k: int = 60) -> float:
+    """Compute Reciprocal Rank Fusion score."""
     return 1.0 / (k + rank + 1)
 
 
 class BM25Index:
     """
-    In-memory BM25 index built from the same chunks stored in the vector DB.
-    Uses rank_bm25 library. Falls back to empty results if not installed.
+    BM25 keyword index.
     """
 
     def __init__(self):
-        self._corpus: list[str] = []
-        self._metadatas: list[dict] = []
-        self._bm25 = None
+        self.corpus: list[str] = []
+        self.metadatas: list[dict] = []
+        self.bm25: BM25Okapi | None = None
 
-    def add(self, texts: list[str], metadatas: list[dict]) -> None:
-        self._corpus.extend(texts)
-        self._metadatas.extend(metadatas)
-        self._build()
+    def add(
+        self,
+        texts: list[str],
+        metadatas: list[dict],
+    ) -> None:
 
-    def _build(self) -> None:
-        try:
-            from rank_bm25 import BM25Okapi
-            tokenised = [t.lower().split() for t in self._corpus]
-            self._bm25 = BM25Okapi(tokenised)
-        except ImportError:
-            self._bm25 = None
+        self.corpus.extend(texts)
+        self.metadatas.extend(metadatas)
 
-    def query(self, text: str, top_k: int = settings.top_k) -> list[SearchResult]:
-        if not self._bm25 or not self._corpus:
+        tokenized = [
+            text.lower().split()
+            for text in self.corpus
+        ]
+
+        self.bm25 = BM25Okapi(tokenized)
+
+    def query(
+        self,
+        query: str,
+        top_k: int = settings.top_k,
+    ) -> list[SearchResult]:
+
+        if self.bm25 is None:
             return []
-        scores = self._bm25.get_scores(text.lower().split())
-        top_idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+
+        scores = self.bm25.get_scores(
+            query.lower().split()
+        )
+
+        ranked_indices = sorted(
+            range(len(scores)),
+            key=lambda i: scores[i],
+            reverse=True,
+        )[:top_k]
+
         return [
             {
-                "text": self._corpus[i],
-                "metadata": self._metadatas[i],
+                "text": self.corpus[i],
+                "metadata": self.metadatas[i],
                 "score": float(scores[i]),
             }
-            for i in top_idxs
+            for i in ranked_indices
         ]
 
 
 class HybridRetriever:
     """
-    Runs dense ANN search + BM25 keyword search, then fuses with RRF.
+    Dense retrieval + BM25 retrieval + Reciprocal Rank Fusion.
     """
 
     def __init__(
@@ -67,56 +86,95 @@ class HybridRetriever:
         embedder: EmbedderProtocol,
         vector_store: VectorStore,
         bm25_index: BM25Index,
-        top_k: int = settings.top_k,
-        use_hybrid: bool = settings.use_hybrid,
     ):
         self.embedder = embedder
         self.vector_store = vector_store
         self.bm25 = bm25_index
-        self.top_k = top_k
-        self.use_hybrid = use_hybrid
 
-    def retrieve(self, queries: list[str]) -> list[SearchResult]:
-        """
-        Accept multiple query phrasings (from query rewriter).
-        Deduplicate and re-rank across all phrasings.
-        """
+        self.top_k = settings.top_k
+        self.use_hybrid = settings.use_hybrid
+
+    def retrieve(
+        self,
+        queries: list[str],
+    ) -> list[SearchResult]:
+
         dense_results: list[SearchResult] = []
         sparse_results: list[SearchResult] = []
 
         for query in queries:
-            vec = self.embedder.embed_query(query)
-            dense_results.extend(self.vector_store.query(vec, top_k=self.top_k))
-            if self.use_hybrid:
-                sparse_results.extend(self.bm25.query(query, top_k=self.top_k))
 
-        return self._fuse(dense_results, sparse_results)
+            embedding = self.embedder.embed_query(query)
+
+            dense_results.extend(
+                self.vector_store.query(
+                    embedding,
+                    self.top_k,
+                )
+            )
+
+            if self.use_hybrid:
+
+                sparse_results.extend(
+                    self.bm25.query(
+                        query,
+                        self.top_k,
+                    )
+                )
+
+        return self._fuse(
+            dense_results,
+            sparse_results,
+        )
 
     def _fuse(
         self,
         dense: list[SearchResult],
         sparse: list[SearchResult],
     ) -> list[SearchResult]:
-        scores: dict[str, float] = {}
-        by_key: dict[str, SearchResult] = {}
 
-        def _key(r: SearchResult) -> str:
-            return r["text"][:200]   # stable dedup key
+        fused_scores: dict[str, float] = {}
+        documents: dict[str, SearchResult] = {}
 
-        for rank, r in enumerate(dense):
-            k = _key(r)
-            scores[k] = scores.get(k, 0.0) + _rrf_score(rank)
-            by_key[k] = r
+        def key(result: SearchResult) -> str:
+            return result["text"][:200]
 
-        for rank, r in enumerate(sparse):
-            k = _key(r)
-            scores[k] = scores.get(k, 0.0) + _rrf_score(rank)
-            by_key.setdefault(k, r)
+        for rank, result in enumerate(dense):
 
-        ranked = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)
-        results = []
-        for k in ranked[: self.top_k]:
-            item = dict(by_key[k])
-            item["score"] = scores[k]
-            results.append(item)
-        return results
+            k = key(result)
+
+            fused_scores[k] = (
+                fused_scores.get(k, 0)
+                + reciprocal_rank_fusion(rank)
+            )
+
+            documents[k] = result
+
+        for rank, result in enumerate(sparse):
+
+            k = key(result)
+
+            fused_scores[k] = (
+                fused_scores.get(k, 0)
+                + reciprocal_rank_fusion(rank)
+            )
+
+            documents.setdefault(k, result)
+
+        ranked = sorted(
+            fused_scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+
+        final_results: list[SearchResult] = []
+
+        for key, score in ranked[: self.top_k]:
+
+            item = dict(documents[key])
+
+            item["score"] = score
+
+            final_results.append(item)
+
+        return final_results
