@@ -161,5 +161,29 @@ class Settings:
     )
 
 
+    # ==========================================================
+    # Logging
+    # ==========================================================
+    log_level: str = field(
+    default_factory=lambda: os.getenv(
+        "LOG_LEVEL",
+        "INFO",
+    )
+)
+
+    log_json: bool = field(
+    default_factory=lambda: os.getenv(
+        "LOG_JSON",
+        "True",
+    ).lower() == "true"
+)
+
+
+    
+
+
+
+
+
 # Singleton
 settings = Settings()
