@@ -71,23 +71,41 @@ class RAGPipeline:
 
         logger.info(f"User Query: {query}")
 
-        #######################################################
-        # Query Rewrite
-        #######################################################
+    #######################################################
+    # Reload latest FAISS index
+    #######################################################
+
+        self.vector_store = get_vector_store()
+        self.bm25 = BM25Index()
+
+        self.retriever = HybridRetriever(
+            embedder=self.embedder,
+            vector_store=self.vector_store,
+            bm25_index=self.bm25,
+    )
+
+        print("\n========== CHAT VECTOR STORE ==========")
+        print("Vectors loaded:", self.vector_store.index.ntotal)
+        print("=======================================\n")
+
+    #######################################################
+    # Query Rewrite
+    #######################################################
 
         rewritten_queries = self.rewriter.rewrite(query)
 
         logger.info(
             f"Generated {len(rewritten_queries)} rewritten queries."
-        )
+    )
 
-        #######################################################
-        # Retrieval
-        #######################################################
+    #######################################################
+    # Retrieval
+    #######################################################
 
         retrieved = self.retriever.retrieve(
             rewritten_queries
-        )
+    )
+
         print("\n========== RETRIEVED DOCUMENTS ==========")
         print("Retrieved:", len(retrieved))
 
@@ -95,124 +113,93 @@ class RAGPipeline:
             print(f"\nDocument {i+1}")
             print(doc["metadata"])
             print(doc["text"][:300])
+
         print("=========================================\n")
 
         logger.info(
             f"Retrieved {len(retrieved)} documents."
-        )
+    )
 
-        #######################################################
-        # Reranking
-        #######################################################
+    #######################################################
+    # Reranking
+    #######################################################
 
         retrieved = self.reranker.rerank(
             query,
             retrieved,
-        )
+    )
 
         logger.info(
             f"Top documents after reranking: {len(retrieved)}"
-        )
+    )
 
-        #######################################################
-        # Prompt
-        #######################################################
+    #######################################################
+    # Prompt
+    #######################################################
 
         system_prompt, messages = self.prompt_builder.build(
             query=query,
             retrieved=retrieved,
             chat_history=chat_history,
-        )
+    )
 
-        #######################################################
-        # LLM
-        #######################################################
+    #######################################################
+    # LLM
+    #######################################################
 
         response = self.llm.complete(
             system_prompt,
             messages,
-        )
+    )
 
-        #######################################################
-        # Guardrails
-        #######################################################
+    #######################################################
+    # Guardrails
+    #######################################################
 
         guard = self.guardrails.run(
             answer=response.text,
             context_chunks=[
                 item["text"]
                 for item in retrieved
-            ],
-        )
+        ],
+    )
 
         if not guard.passed:
 
             logger.warning(
                 f"Guardrail blocked answer: {guard.reason}"
-            )
+        )
 
             return {
                 "answer": guard.safe_response,
                 "sources": [],
                 "model": response.model,
-            }
+        }
 
-        #######################################################
-        # Sources
-        #######################################################
+    #######################################################
+    # Sources
+    #######################################################
 
         sources = []
 
         for doc in retrieved:
 
-            metadata = doc["metadata"]
+                metadata = doc["metadata"]
 
-            sources.append(
-                {
-                    "source": metadata.get("source"),
-                    "page": metadata.get("page"),
-                    "score": round(doc["score"], 4),
-                }
-            )
+                sources.append(
+            {
+                       "source": metadata.get("source"),
+                       "page": metadata.get("page"),
+                       "score": round(doc["score"], 4),
+            }
+        )
 
-        #######################################################
-        # Final Output
-        #######################################################
+    #######################################################
+    # Final Output
+    #######################################################
 
         return {
-            "answer": response.text,
-            "sources": sources,
-            "model": response.model,
-        }
-
-    ###########################################################
-    # Streaming
-    ###########################################################
-
-    def stream(
-        self,
-        query: str,
-        chat_history: list[dict] | None = None,
-    ):
-
-        rewritten_queries = self.rewriter.rewrite(query)
-
-        retrieved = self.retriever.retrieve(
-            rewritten_queries
-        )
-
-        retrieved = self.reranker.rerank(
-            query,
-            retrieved,
-        )
-
-        system_prompt, messages = self.prompt_builder.build(
-            query=query,
-            retrieved=retrieved,
-            chat_history=chat_history,
-        )
-
-        yield from self.llm.stream(
-            system_prompt,
-            messages,
-        )
+                "answer": response.text,
+                "sources": sources,
+                "model": response.model,
+    }

@@ -44,6 +44,7 @@ with st.sidebar:
                     "file": (
                         uploaded_file.name,
                         uploaded_file.getvalue(),
+                        uploaded_file.type,
                     )
                 }
 
@@ -51,6 +52,9 @@ with st.sidebar:
                     f"{API_URL}/upload",
                     files=files,
                 )
+
+                print("Status:", response.status_code)
+                print(response.text)
 
             if response.status_code == 200:
 

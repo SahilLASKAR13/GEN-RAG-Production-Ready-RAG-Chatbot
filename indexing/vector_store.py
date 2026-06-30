@@ -36,7 +36,6 @@ class VectorStore(ABC):
         vector: list[float],
         top_k: int = settings.top_k,
     ) -> list[SearchResult]:
-        
         ...
 
     @abstractmethod
@@ -94,11 +93,10 @@ class FAISSStore(VectorStore):
         vector: list[float],
         top_k: int = settings.top_k,
     ) -> list[SearchResult]:
+
         print("\n========== FAISS DEBUG ==========")
         print("Total vectors in index:", self.index.ntotal)
         print("=================================\n")
-
-        ...
 
         query_vector = np.asarray([vector], dtype=np.float32)
 
@@ -122,31 +120,31 @@ class FAISSStore(VectorStore):
         return results
 
     def save(self) -> None:
+
         print("\n===== SAVING FAISS =====")
         print("Vectors:", self.index.ntotal)
 
         faiss.write_index(
             self.index,
             str(self.index_file),
-    )
+        )
 
         with open(self.metadata_file, "wb") as f:
             pickle.dump(
-            {
+                {
                     "texts": self.texts,
                     "metadatas": self.metadatas,
-            },
-            f,
-        )
+                },
+                f,
+            )
 
         print("Saved index to:", self.index_file)
         print("Saved metadata to:", self.metadata_file)
         print("========================\n")
 
-    def load(self):
+    def load(self) -> None:
 
         print("\n===== LOADING FAISS =====")
-
         print("Index exists:", self.index_file.exists())
         print("Metadata exists:", self.metadata_file.exists())
 
@@ -169,7 +167,6 @@ class FAISSStore(VectorStore):
         print("=========================\n")
 
     def delete_all(self) -> None:
-        """Clear all vectors and remove persisted files."""
 
         self.index = faiss.IndexFlatIP(self.dimension)
 
@@ -183,7 +180,24 @@ class FAISSStore(VectorStore):
             self.metadata_file.unlink()
 
 
-def get_vector_store() -> VectorStore:
-    """Return the configured vector store."""
+# ==========================================================
+# Singleton Vector Store
+# ==========================================================
 
-    return FAISSStore()
+_vector_store: VectorStore | None = None
+
+
+def get_vector_store() -> VectorStore:
+    """
+    Return a singleton FAISS vector store.
+
+    Every pipeline (ingestion, retrieval, chat)
+    shares the same in-memory FAISS index.
+    """
+
+    global _vector_store
+
+    if _vector_store is None:
+        _vector_store = FAISSStore()
+
+    return _vector_store

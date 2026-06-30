@@ -1,38 +1,39 @@
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from deployment.api import router as api_router
-from pipeline.rag_pipeline import RAGPipeline
+from pipeline.pipeline_manager import (
+    ingestion_pipeline,
+    rag_pipeline,
+)
 from utils.logger import get_logger
 
 
 logger = get_logger(__name__)
 
 
-# Global RAG Pipeline
-rag_pipeline: RAGPipeline | None = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Runs once when the server starts.
+    Uses the singleton pipelines from pipeline_manager.
     """
-
-    global rag_pipeline
 
     logger.info("Starting RAG Chatbot...")
 
     try:
-        rag_pipeline = RAGPipeline()
+        # Load existing FAISS index
+        rag_pipeline.vector_store.load()
 
         logger.info("RAG Pipeline initialized successfully.")
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to initialize RAG Pipeline.")
-        raise e
+        raise
 
     yield
 

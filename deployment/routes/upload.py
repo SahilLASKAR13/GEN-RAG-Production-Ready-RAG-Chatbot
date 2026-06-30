@@ -5,7 +5,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from pipeline.ingestion_pipeline import IngestionPipeline
+from pipeline.pipeline_manager import (
+    ingestion_pipeline,
+    rag_pipeline,
+)
 from schemes.upload import UploadResponse
 
 
@@ -47,9 +50,22 @@ async def upload_document(
     print("Saved to:", save_path)
     print("==============================\n")
 
-    pipeline = IngestionPipeline()
+    # -------------------------------
+    # Index the uploaded document
+    # -------------------------------
+    ingestion_pipeline.ingest_file(str(save_path))
 
-    pipeline.ingest_file(str(save_path))
+    # -------------------------------
+    # Reload FAISS into the shared RAG pipeline
+    # -------------------------------
+    rag_pipeline.vector_store.load()
+
+    # Share the updated BM25 index
+    rag_pipeline.bm25 = ingestion_pipeline.bm25
+    rag_pipeline.retriever.bm25 = ingestion_pipeline.bm25
+
+    # Ensure retriever uses the updated FAISS store
+    rag_pipeline.retriever.vector_store = rag_pipeline.vector_store
 
     print("\n==============================")
     print("INGESTION FINISHED")
@@ -57,6 +73,6 @@ async def upload_document(
 
     return UploadResponse(
         filename=file.filename,
-        chunks=0,
+        chunks=0,  # Replace with actual chunk count if ingest_file() returns it
         message="Document indexed successfully.",
     )

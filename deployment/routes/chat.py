@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-
-from pipeline.rag_pipeline import RAGPipeline
-from schemes.chat import ChatRequest, ChatResponse
 from fastapi.responses import StreamingResponse
 
+# Use the shared pipeline
+from pipeline.pipeline_manager import rag_pipeline
+
+from schemes.chat import ChatRequest, ChatResponse
 
 router = APIRouter()
-
-rag_pipeline = RAGPipeline()
 
 
 @router.post(
@@ -40,7 +39,6 @@ def chat(request: ChatRequest):
 def chat_stream(request: ChatRequest):
 
     def event_stream():
-
         for token in rag_pipeline.stream(
             query=request.query,
             chat_history=request.chat_history,
@@ -51,8 +49,3 @@ def chat_stream(request: ChatRequest):
         event_stream(),
         media_type="text/plain",
     )
-
-
-@router.post("/chat")
-def chat(request: ChatRequest):
-    ...
