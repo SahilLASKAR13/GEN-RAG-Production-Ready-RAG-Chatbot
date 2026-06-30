@@ -36,6 +36,7 @@ class VectorStore(ABC):
         vector: list[float],
         top_k: int = settings.top_k,
     ) -> list[SearchResult]:
+        
         ...
 
     @abstractmethod
@@ -93,6 +94,11 @@ class FAISSStore(VectorStore):
         vector: list[float],
         top_k: int = settings.top_k,
     ) -> list[SearchResult]:
+        print("\n========== FAISS DEBUG ==========")
+        print("Total vectors in index:", self.index.ntotal)
+        print("=================================\n")
+
+        ...
 
         query_vector = np.asarray([vector], dtype=np.float32)
 
@@ -116,31 +122,51 @@ class FAISSStore(VectorStore):
         return results
 
     def save(self) -> None:
-        """Persist FAISS index and metadata."""
+        print("\n===== SAVING FAISS =====")
+        print("Vectors:", self.index.ntotal)
 
-        faiss.write_index(self.index, str(self.index_file))
+        faiss.write_index(
+            self.index,
+            str(self.index_file),
+    )
 
         with open(self.metadata_file, "wb") as f:
             pickle.dump(
-                {
+            {
                     "texts": self.texts,
                     "metadatas": self.metadatas,
-                },
-                f,
-            )
+            },
+            f,
+        )
 
-    def load(self) -> None:
-        """Load saved FAISS index if it exists."""
+        print("Saved index to:", self.index_file)
+        print("Saved metadata to:", self.metadata_file)
+        print("========================\n")
+
+    def load(self):
+
+        print("\n===== LOADING FAISS =====")
+
+        print("Index exists:", self.index_file.exists())
+        print("Metadata exists:", self.metadata_file.exists())
 
         if self.index_file.exists():
+
             self.index = faiss.read_index(str(self.index_file))
 
+            print("Loaded vectors:", self.index.ntotal)
+
         if self.metadata_file.exists():
+
             with open(self.metadata_file, "rb") as f:
                 data = pickle.load(f)
 
             self.texts = data["texts"]
             self.metadatas = data["metadatas"]
+
+            print("Loaded texts:", len(self.texts))
+
+        print("=========================\n")
 
     def delete_all(self) -> None:
         """Clear all vectors and remove persisted files."""

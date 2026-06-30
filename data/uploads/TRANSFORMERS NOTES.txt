@@ -1,0 +1,81 @@
+RNN - previous i/p using hidden state
+
+LSTM -it has gate remember long-term dependencies <----- time series
+
+
+TRANSFORMERS
+
+
+a transformer is an attention based neural network architures that process all words in parallel and learns relationships btw them ChatGPT , gemini uses transformers
+
+goal:
+
+read the entire sentence at once and figure out which words should pay attention 
+
+eg: the trophy didn't fit in the bag because it was too big
+
+it -->trophy(0.8)/bag(0.2)
+
+why transformers where introduced?
+before transformers models like RNN,LSTM and biLSTM processed text word by word in sequence 
+
+problems with older models:
+
+*slow training
+*hard to remember long sentences
+*difficult to do the parallel processing 
+*performance drops on long sentences/text
+
+these problems are solved using attention mechanism  
+
+eg: the transformer used in chatbots, language translation ,summerizing speech, code generation
+
+architecture of transformers
+i/p
+|
+|
+tokenization
+|
+|
+Embeddings
+|
+|
+positional encoding
+|
+|
+Encoder stack(different layers in this)-->Encoder representation 
+
+
+ENCODER
+
+an encoder is a part of transformers that reads the complete i\p text, understands the meaning using context , and converts it into numerical representation(vectors)
+
+it doesn't generate text it is mainly used for understanding the text 
+
+models for the encoder --> BERT(GOOGLE),ROBERTA(META it is better than BERT ), DistillBERT(hungging face),ALBERT(GOOGLE lightweight to other models),ELECTRA(GOOGLE),DEBERTa(MICROSOFT it has high accuracy),XLM(META it is used for multillungal preposes) 
+
+DECODER
+
+a decoder is a part of transformers that generates o/p text as a word or sub word at a time using previously generated tokens as context it is mainly used for writing cum predicting and generating text and et
+
+models for decoders ---> GPT2(openAL used case text generation),GPT3(openAI use in chatbots),GPT4(OPENAL used for advanced reasoning),
+llama(META openmodel),CLUDE(Anthropic use in long context asisting), gemini(GOOGLE USE multi-model AL ),Phi(Microsoft it is used for  small smart model)
+
+where decoder is used: chatbot ,content writing , code generation , auto complete , story writing , email drafting , translation
+
+positional encoding
+
+it is technique used in transformers to add word order information to token embedings , so model knows the position of each word in sequence        or        positional encoding tells the transformer which word comes first, second , third etc
+
+which sentence makes sense 
+
+the tenant shall pay the land lord
+         or
+the land lord shal par the tenant
+
+
+dog bites man
+   or 
+man bites dog
+
+ 

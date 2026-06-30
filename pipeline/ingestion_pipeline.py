@@ -50,6 +50,12 @@ class IngestionPipeline:
         logger.info(f"Loaded {len(documents)} documents.")
 
         chunks = self.chunker.split_many(documents)
+        print("\n========== CHUNKS DEBUG ==========")
+        print("Chunks:", len(chunks))
+        if chunks:
+            print("First chunk:")
+            print(chunks[0])
+        print("==================================\n")
 
         logger.info(f"Generated {len(chunks)} chunks.")
 
@@ -57,6 +63,11 @@ class IngestionPipeline:
             chunk["text"]
             for chunk in chunks
         ]
+        print("\n========== TEXTS DEBUG ==========")
+        print("Texts:", len(texts))
+        if texts:
+            print(texts[0][:300])
+        print("=================================\n")
 
         metadatas = [
             chunk["metadata"]
@@ -65,7 +76,43 @@ class IngestionPipeline:
 
         logger.info("Generating embeddings...")
 
+        print("Number of chunks:", len(chunks))
+        print("Number of texts:", len(texts))
+
+        if texts:
+            print("First text:")
+            print(texts[0][:300])
+        else:
+            print("texts is EMPTY")
+
         vectors = self.embedder.embed(texts)
+
+        print("Texts:", len(texts))
+        print("Embeddings:", len(vectors))
+
+
+
+    # ---------------- DEBUG ----------------
+        import numpy as np
+
+        print("\n========== EMBEDDING DEBUG ==========")
+        print("vectors type :", type(vectors))
+
+        try:
+            print("vectors length :", len(vectors))
+        except Exception:
+            print("vectors has no len()")
+
+        if hasattr(vectors, "__len__") and len(vectors) > 0:
+            print("first item type :", type(vectors[0]))
+            print("first item :", vectors[0])
+
+        vectors_np = np.asarray(vectors)
+
+        print("numpy shape :", vectors_np.shape)
+        print("numpy dtype :", vectors_np.dtype)
+        print("=====================================\n")
+    # ---------------------------------------
 
         logger.info("Saving vectors to FAISS...")
 
@@ -113,6 +160,12 @@ class IngestionPipeline:
         loader = LoaderFactory.for_url(url)
 
         docs = loader.load(url)
+        print("\n========== DOCS DEBUG ==========")
+        print("Documents:", len(docs))
+        if docs:
+            print("First document:")
+            print(docs[0])
+        print("================================\n")
 
         self._index_documents(docs)
 
@@ -162,3 +215,9 @@ class IngestionPipeline:
         self.bm25 = BM25Index()
 
         logger.info("Index cleared.")
+
+    def ingest(self, path: str):
+       """
+       Backward-compatible wrapper.
+       """
+       self.ingest_file(path)

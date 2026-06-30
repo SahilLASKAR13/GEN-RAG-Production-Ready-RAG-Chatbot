@@ -42,16 +42,21 @@ async def upload_document(
     with save_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    print("\n==============================")
+    print("UPLOAD API CALLED")
+    print("Saved to:", save_path)
+    print("==============================\n")
+
     pipeline = IngestionPipeline()
 
-    chunks = pipeline.ingest(str(save_path))
+    pipeline.ingest_file(str(save_path))
+
+    print("\n==============================")
+    print("INGESTION FINISHED")
+    print("==============================\n")
 
     return UploadResponse(
         filename=file.filename,
-        chunks=chunks,
+        chunks=0,
         message="Document indexed successfully.",
     )
-
-@router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
-    ...

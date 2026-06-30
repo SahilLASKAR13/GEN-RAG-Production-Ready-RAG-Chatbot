@@ -88,6 +88,14 @@ class RAGPipeline:
         retrieved = self.retriever.retrieve(
             rewritten_queries
         )
+        print("\n========== RETRIEVED DOCUMENTS ==========")
+        print("Retrieved:", len(retrieved))
+
+        for i, doc in enumerate(retrieved):
+            print(f"\nDocument {i+1}")
+            print(doc["metadata"])
+            print(doc["text"][:300])
+        print("=========================================\n")
 
         logger.info(
             f"Retrieved {len(retrieved)} documents."
