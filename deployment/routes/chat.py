@@ -9,6 +9,7 @@ from pipeline.pipeline_manager import rag_pipeline
 from schemes.chat import ChatRequest, ChatResponse
 
 router = APIRouter()
+import traceback
 
 
 @router.post(
@@ -29,6 +30,7 @@ def chat(request: ChatRequest):
         )
 
     except Exception as e:
+        traceback.print_exc()   # <-- prints the full error in the terminal
         raise HTTPException(
             status_code=500,
             detail=str(e),

@@ -50,24 +50,15 @@ async def upload_document(
     print("Saved to:", save_path)
     print("==============================\n")
 
-    # -------------------------------
+    # -----------------------------------
     # Index the uploaded document
-    # -------------------------------
+    # -----------------------------------
     ingestion_pipeline.ingest_file(str(save_path))
 
+    # -----------------------------------
+    # Refresh the shared RAG pipeline
+    # -----------------------------------
     rag_pipeline.refresh()
-
-    # -------------------------------
-    # Reload FAISS into the shared RAG pipeline
-    # -------------------------------
-    rag_pipeline.vector_store.load()
-
-    # Share the updated BM25 index
-    rag_pipeline.bm25 = ingestion_pipeline.bm25
-    rag_pipeline.retriever.bm25 = ingestion_pipeline.bm25
-
-    # Ensure retriever uses the updated FAISS store
-    rag_pipeline.retriever.vector_store = rag_pipeline.vector_store
 
     print("\n==============================")
     print("INGESTION FINISHED")
