@@ -4,15 +4,18 @@ __pycache__/
 *.pyo
 *.pyd
 
-.git
+.git/
 .gitignore
 
-.idea/
-.vscode/
+.streamlit/
+
+storage/faiss/
+data/uploads/
 
 .env
 
-storage/faiss_index/
-data/uploads/
+research/
 
-*.ipynb
+.ipynb_checkpoints/
+
+*.log

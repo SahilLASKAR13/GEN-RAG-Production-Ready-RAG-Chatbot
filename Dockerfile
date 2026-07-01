@@ -1,62 +1,47 @@
-# deployment/Dockerfile
-
-# -----------------------------
+# -------------------------------
 # Base Image
-# -----------------------------
-FROM python:3.12-slim
+# -------------------------------
+FROM python:3.11-slim
 
-# -----------------------------
-# Set Working Directory
-# -----------------------------
-WORKDIR /app
-
-# -----------------------------
+# -------------------------------
 # Environment Variables
-# -----------------------------
+# -------------------------------
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# -----------------------------
-# Install System Dependencies
-# -----------------------------
+# -------------------------------
+# Working Directory
+# -------------------------------
+WORKDIR /app
+
+# -------------------------------
+# Install System Packages
+# -------------------------------
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
     build-essential \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# -----------------------------
-# Copy Requirements
-# -----------------------------
+# -------------------------------
+# Install Python Dependencies
+# -------------------------------
 COPY requirements.txt .
 
-# -----------------------------
-# Upgrade pip
-# -----------------------------
 RUN pip install --upgrade pip
 
-# -----------------------------
-# Install Python Dependencies
-# -----------------------------
 RUN pip install --no-cache-dir -r requirements.txt
 
-# -----------------------------
-# Copy Entire Project
-# -----------------------------
+# -------------------------------
+# Copy Project
+# -------------------------------
 COPY . .
 
-# -----------------------------
-# Create Required Directories
-# -----------------------------
-RUN mkdir -p storage/faiss_index
-RUN mkdir -p data/uploads
-
-# -----------------------------
+# -------------------------------
 # Expose FastAPI Port
-# -----------------------------
+# -------------------------------
 EXPOSE 8000
 
-# -----------------------------
-# Run FastAPI
-# -----------------------------
+# -------------------------------
+# Start FastAPI
+# -------------------------------
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
