@@ -55,6 +55,8 @@ async def upload_document(
     # -------------------------------
     ingestion_pipeline.ingest_file(str(save_path))
 
+    rag_pipeline.refresh()
+
     # -------------------------------
     # Reload FAISS into the shared RAG pipeline
     # -------------------------------

@@ -40,8 +40,20 @@ class HuggingFaceEmbedder:
         return self.embed([text])[0]
 
 
+# ----------------------------------------------------
+# Singleton Embedder
+# ----------------------------------------------------
+
+_embedder: HuggingFaceEmbedder | None = None
+
+
 def get_embedder() -> EmbedderProtocol:
     """
-    Return the configured embedding model.
+    Returns one shared embedding model for the entire application.
     """
-    return HuggingFaceEmbedder()
+    global _embedder
+
+    if _embedder is None:
+        _embedder = HuggingFaceEmbedder()
+
+    return _embedder

@@ -17,7 +17,6 @@ SearchResult = dict[str, Any]
 
 
 def reciprocal_rank_fusion(rank: int, k: int = 60) -> float:
-    """Compute Reciprocal Rank Fusion score."""
     return 1.0 / (k + rank + 1)
 
 
@@ -78,7 +77,7 @@ class BM25Index:
 
 class HybridRetriever:
     """
-    Dense retrieval + BM25 retrieval + Reciprocal Rank Fusion.
+    Dense + BM25 + Reciprocal Rank Fusion.
     """
 
     def __init__(
@@ -94,10 +93,36 @@ class HybridRetriever:
         self.top_k = settings.top_k
         self.use_hybrid = settings.use_hybrid
 
+    # ---------------------------------------------------------
+    # NEW
+    # ---------------------------------------------------------
+
+    def refresh_bm25(self):
+        """
+        Build BM25 from everything currently stored in FAISS.
+        This keeps BM25 synchronized after every upload.
+        """
+
+        if len(self.bm25.corpus) == len(self.vector_store.texts):
+            return
+
+        self.bm25 = BM25Index()
+
+        if self.vector_store.texts:
+            self.bm25.add(
+                self.vector_store.texts,
+                self.vector_store.metadatas,
+            )
+
+    # ---------------------------------------------------------
+
     def retrieve(
         self,
         queries: list[str],
     ) -> list[SearchResult]:
+
+        # Always synchronize BM25 with FAISS
+        self.refresh_bm25()
 
         dense_results: list[SearchResult] = []
         sparse_results: list[SearchResult] = []

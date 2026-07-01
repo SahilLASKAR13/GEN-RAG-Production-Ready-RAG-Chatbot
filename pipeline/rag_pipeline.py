@@ -203,3 +203,29 @@ class RAGPipeline:
                 "sources": sources,
                 "model": response.model,
     }
+
+    ###########################################################
+# Refresh indexes after new upload
+###########################################################
+
+def refresh(self):
+
+    logger.info("Refreshing retrieval indexes...")
+
+    # Reload FAISS from disk
+    self.vector_store.load()
+
+    # Rebuild BM25 from FAISS texts
+    self.bm25 = BM25Index()
+
+    self.bm25.add(
+        texts=self.vector_store.texts,
+        metadatas=self.vector_store.metadatas,
+    )
+
+    # Update retriever
+    self.retriever.bm25 = self.bm25
+
+    logger.info(
+        f"Refresh complete. Documents: {len(self.vector_store.texts)}"
+    )
