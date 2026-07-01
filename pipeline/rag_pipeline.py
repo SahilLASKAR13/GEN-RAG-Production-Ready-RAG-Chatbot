@@ -36,13 +36,19 @@ class RAGPipeline:
         logger.info("Initializing RAG Pipeline...")
 
         # Embedding model
+        print("1. Loading Embedder...")
         self.embedder = get_embedder()
+        print("Done")
 
         # Vector Store
+        print("2. Loading Vector Store...")
         self.vector_store = get_vector_store()
+        print("Done")
 
         # BM25
+        print("3. Creating BM25 Index...")
         self.bm25 = BM25Index()
+        print("Done")
 
         # Build BM25 from existing FAISS documents
         if len(self.vector_store.texts) > 0:
@@ -54,28 +60,41 @@ class RAGPipeline:
                 texts=self.vector_store.texts,
                 metadatas=self.vector_store.metadatas,
             )
+        print("Done")
 
         # Hybrid Retriever
+        print("5. Creating Hybrid Retriever...")
         self.retriever = HybridRetriever(
             embedder=self.embedder,
             vector_store=self.vector_store,
             bm25_index=self.bm25,
         )
+        print("Done")
 
         # Query Rewriter
+        print("6. Creating Query Rewriter...")
         self.rewriter = get_query_rewriter()
+        print("Done")
 
         # Cross Encoder Reranker
+        print("7. Creating Cross Encoder Reranker...")
         self.reranker = get_reranker()
+        print("Done")
 
         # Prompt Builder
+        print("8. Creating Prompt Builder...")
         self.prompt_builder = PromptBuilder()
+        print("Done")
 
         # LLM
+        print("9. Loading LLM...")
         self.llm = get_llm()
+        print("Done")
 
         # Guardrails
+        print("10. Creating Guardrails...")
         self.guardrails = GuardrailPipeline()
+        print("Done")
 
         logger.info("RAG Pipeline initialized successfully.")
 
